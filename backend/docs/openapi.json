@@ -1,0 +1,438 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "API Coches",
+    "version": "1.0.0",
+    "description": "CRUD de coches y marcas. Los endpoints de escritura requieren JWT (login en /auth/login). Las imágenes se sirven desde /imagenes/<archivo>."
+  },
+  "servers": [{ "url": "/api" }],
+  "tags": [
+    { "name": "Auth" },
+    { "name": "Coches" },
+    { "name": "Marcas" },
+    { "name": "Imágenes" }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Iniciar sesión y obtener token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginInput" },
+              "example": { "email": "admin@prueba.com", "password": "admin123" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token JWT",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Validacion" },
+          "401": { "$ref": "#/components/responses/NoAutorizado" }
+        }
+      }
+    },
+    "/uploads": {
+      "post": {
+        "tags": ["Imágenes"],
+        "summary": "Subir la imagen de un coche",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["imagen"],
+                "properties": {
+                  "imagen": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ruta pública de la imagen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "imagen": { "type": "string", "example": "/uploads/2f5c1a9e-....jpg" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Validacion" },
+          "401": { "$ref": "#/components/responses/NoAutorizado" }
+        }
+      }
+    },
+    "/coches": {
+      "get": {
+        "tags": ["Coches"],
+        "summary": "Listar coches con paginación y filtros",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1, "minimum": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10, "minimum": 1, "maximum": 100 } },
+          { "name": "marca", "in": "query", "description": "ID o nombre de la marca", "schema": { "type": "string" }, "example": "Toyota" },
+          { "name": "precioMin", "in": "query", "schema": { "type": "number" }, "example": 40000 },
+          { "name": "precioMax", "in": "query", "schema": { "type": "number" }, "example": 100000 },
+          { "name": "anio", "in": "query", "schema": { "type": "integer" }, "example": 2023 },
+          { "name": "combustible", "in": "query", "schema": { "$ref": "#/components/schemas/Combustible" } },
+          { "name": "q", "in": "query", "description": "Busca en modelo y color", "schema": { "type": "string" }, "example": "Rojo" },
+          { "name": "orden", "in": "query", "schema": { "type": "string", "enum": ["recientes", "precio_asc", "precio_desc", "anio_desc"], "default": "recientes" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de coches",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CochePage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Validacion" }
+        }
+      },
+      "post": {
+        "tags": ["Coches"],
+        "summary": "Crear coche",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CocheInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Coche creado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Coche" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Validacion" },
+          "401": { "$ref": "#/components/responses/NoAutorizado" },
+          "409": { "$ref": "#/components/responses/Conflicto" }
+        }
+      }
+    },
+    "/coches/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/Id" }],
+      "get": {
+        "tags": ["Coches"],
+        "summary": "Obtener coche",
+        "responses": {
+          "200": {
+            "description": "Coche",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Coche" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NoEncontrado" }
+        }
+      },
+      "put": {
+        "tags": ["Coches"],
+        "summary": "Actualizar coche (campos opcionales)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CocheUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Coche actualizado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Coche" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Validacion" },
+          "401": { "$ref": "#/components/responses/NoAutorizado" },
+          "404": { "$ref": "#/components/responses/NoEncontrado" },
+          "409": { "$ref": "#/components/responses/Conflicto" }
+        }
+      },
+      "delete": {
+        "tags": ["Coches"],
+        "summary": "Eliminar coche",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Eliminado" },
+          "401": { "$ref": "#/components/responses/NoAutorizado" },
+          "404": { "$ref": "#/components/responses/NoEncontrado" }
+        }
+      }
+    },
+    "/marcas": {
+      "get": {
+        "tags": ["Marcas"],
+        "summary": "Listar marcas con cantidad de coches",
+        "responses": {
+          "200": {
+            "description": "Marcas",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Marca" } }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Marcas"],
+        "summary": "Crear marca",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MarcaInput" },
+              "example": { "nombre": "Honda" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Marca creada",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Marca" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Validacion" },
+          "401": { "$ref": "#/components/responses/NoAutorizado" },
+          "409": { "$ref": "#/components/responses/Conflicto" }
+        }
+      }
+    },
+    "/marcas/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/Id" }],
+      "get": {
+        "tags": ["Marcas"],
+        "summary": "Obtener marca con sus coches",
+        "responses": {
+          "200": {
+            "description": "Marca",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Marca" },
+                    { "type": "object", "properties": { "coches": { "type": "array", "items": { "$ref": "#/components/schemas/Coche" } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NoEncontrado" }
+        }
+      },
+      "put": {
+        "tags": ["Marcas"],
+        "summary": "Actualizar marca",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MarcaInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Marca actualizada",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Marca" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Validacion" },
+          "401": { "$ref": "#/components/responses/NoAutorizado" },
+          "404": { "$ref": "#/components/responses/NoEncontrado" },
+          "409": { "$ref": "#/components/responses/Conflicto" }
+        }
+      },
+      "delete": {
+        "tags": ["Marcas"],
+        "summary": "Eliminar marca (falla si tiene coches)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Eliminada" },
+          "401": { "$ref": "#/components/responses/NoAutorizado" },
+          "404": { "$ref": "#/components/responses/NoEncontrado" },
+          "409": { "$ref": "#/components/responses/Conflicto" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "parameters": {
+      "Id": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 1 } }
+    },
+    "responses": {
+      "NoEncontrado": {
+        "description": "No encontrado",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "error": "Coche no encontrado" } } }
+      },
+      "NoAutorizado": {
+        "description": "Falta el token o es inválido",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "error": "Token requerido" } } }
+      },
+      "Conflicto": {
+        "description": "Datos duplicados o relación en uso",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "error": "Ya existe un registro con esos datos" } } }
+      },
+      "Validacion": {
+        "description": "Datos inválidos",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorValidacion" },
+            "example": { "error": "Datos inválidos", "detalles": [{ "campo": "precio", "mensaje": "El precio debe ser mayor a 0" }] }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Combustible": { "type": "string", "enum": ["gasolina", "diesel", "electrico", "hibrido", "gas"] },
+      "MarcaInput": {
+        "type": "object",
+        "required": ["nombre"],
+        "properties": { "nombre": { "type": "string", "maxLength": 50, "example": "Toyota" } }
+      },
+      "Marca": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "nombre": { "type": "string", "example": "Toyota" },
+          "totalCoches": { "type": "integer", "example": 1 }
+        }
+      },
+      "CocheInput": {
+        "type": "object",
+        "required": ["marcaId", "modelo", "anio", "precio", "color", "puertas", "combustible"],
+        "properties": {
+          "marcaId": { "type": "integer", "example": 1 },
+          "modelo": { "type": "string", "maxLength": 80, "example": "Corolla" },
+          "anio": { "type": "integer", "minimum": 1900, "example": 2023 },
+          "precio": { "type": "number", "example": 85000 },
+          "color": { "type": "string", "maxLength": 30, "example": "Blanco" },
+          "puertas": { "type": "integer", "minimum": 2, "maximum": 6, "example": 4 },
+          "combustible": { "$ref": "#/components/schemas/Combustible" },
+          "imagen": { "type": "string", "maxLength": 255, "example": "/imagenes/toyota.jpeg" }
+        }
+      },
+      "CocheUpdate": {
+        "type": "object",
+        "description": "Mismos campos que CocheInput, todos opcionales",
+        "properties": {
+          "marcaId": { "type": "integer" },
+          "modelo": { "type": "string" },
+          "anio": { "type": "integer" },
+          "precio": { "type": "number" },
+          "color": { "type": "string" },
+          "puertas": { "type": "integer" },
+          "combustible": { "$ref": "#/components/schemas/Combustible" },
+          "imagen": { "type": "string" }
+        }
+      },
+      "Coche": {
+        "allOf": [
+          { "$ref": "#/components/schemas/CocheInput" },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "example": 1 },
+              "marca": { "$ref": "#/components/schemas/Marca" }
+            }
+          }
+        ]
+      },
+      "CochePage": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Coche" } },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": { "type": "integer", "example": 1 },
+              "limit": { "type": "integer", "example": 10 },
+              "total": { "type": "integer", "example": 11 },
+              "totalPages": { "type": "integer", "example": 2 }
+            }
+          }
+        }
+      },
+      "LoginInput": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "usuario": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer" },
+              "email": { "type": "string" }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": { "error": { "type": "string" } }
+      },
+      "ErrorValidacion": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "Datos inválidos" },
+          "detalles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "campo": { "type": "string" },
+                "mensaje": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
