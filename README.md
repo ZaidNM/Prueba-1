@@ -191,63 +191,92 @@ npm run dev
 permiso de `CREATE DATABASE`. Comprobación: <http://localhost:3000/api/health> →
 `{"ok":true}` y <http://localhost:5173> muestra el catálogo.
 
-## 10. Docker (todo en uno)
+## 10. Docker: qué levanta y qué URLs usar
 
-Un solo comando levanta MySQL, migra, siembra y sirve frontend + API:
+`docker-compose.yml` levanta 4 cosas: **MySQL**, un contenedor que **migra y siembra** la base, el **backend** y el **frontend** (nginx).
 
-```bash
-docker compose up --build
-```
-
-| Servicio | URL |
+| Qué | URL |
 | --- | --- |
-| Frontend | http://localhost:8080 |
+| App | http://localhost:8080 |
 | API | http://localhost:3001/api |
 | Swagger | http://localhost:3001/docs |
 | MySQL | localhost:3307 |
 
-- `migrate` aplica `migraciones/sql/*.sql` y ejecuta el seed.
-- `frontend` es nginx: sirve `dist/` y hace proxy de `/api`, `/uploads` y `/docs` al backend. Por eso las imágenes subidas y el *SPA fallback* de React Router funcionan sin configuración extra.
-- `backend` guarda las imágenes en el volumen `uploads` y MySQL en `mysql_data`.
-- MySQL se publica en **3307** para no chocar con un MySQL local en 3306.
-
-Variables de entorno (con sus valores por defecto):
-
-```bash
-JWT_SECRET="clave-larga-y-aleatoria" docker compose up --build -d
-```
-
-`DB_PASSWORD` (`1234`), `DB_NAME` (`prueba_coches`) y `JWT_SECRET`. Cambia `JWT_SECRET` siempre fuera de local.
-
-```bash
-docker compose down       # apagar
-docker compose down -v    # apagar y borrar datos (MySQL + imágenes)
-```
-
-Archivos añadidos: `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf`.
+- MySQL va en **3307** para no chocar con el MySQL de tu PC (3306).
+- Los datos viven en volúmenes (`mysql_data` y `uploads`): sobreviven a un `down`.
+- Variables: `DB_PASSWORD` (default `1234`), `DB_NAME` y `JWT_SECRET`.
+- En Docker **no** hace falta `backend/.env`: las variables están en `docker-compose.yml`.
+- Cómo levantarlo y actualizarlo: **sección 13**.
 
 ## 11. Tests y CI
 
 ```bash
 cd backend
-npm test        # 25 tests con node:test, sin base de datos
+npm test        # 25 tests, no necesita base de datos
 ```
 
-- `backend/test/validators.test.js`: reglas de Zod (precio, año, puertas, combustible, paginación, orden, login, marcas).
-- `backend/test/app.test.js`: peticiones HTTP reales contra la app (health, 404 en JSON, 400 de validación, 401 sin token).
-- `backend/app.js` expone la app de Express y `backend/index.js` solo hace `listen`; así los tests arrancan en un puerto libre sin tocar la BD.
-
-`.github/workflows/ci.yml` corre en cada push/PR a `main`:
-
-```bash
-cd backend  && npm ci && npm test
-cd frontend && npm ci && npm run build
-```
+- `backend/test/validators.test.js`: comprueba que Zod rechace datos malos (precio 0, año 1800, email inválido...).
+- `backend/test/app.test.js`: llama a la API de verdad (health, 404, 400, 401 sin token).
+- `backend/app.js` es la app; `backend/index.js` solo la pone a escuchar. Así los tests arrancan sin el puerto fijo y sin MySQL.
+- `.github/workflows/ci.yml`: en cada push a `main`, GitHub corre los tests y el build del frontend. Si sale rojo, mira la pestaña **Actions** del repo.
 
 ## 12. Despliegue en producción (sin Docker)
 
-1. **Backend** (Render, Railway, Fly.io): build `cd backend && npm ci`, start `npm start`. Variables: `DB_*`, `JWT_SECRET`, `CLIENT_URL=https://tu-front`.
-2. **Frontend** (Vercel, Netlify): build `cd frontend && npm ci && npm run build`, publicar `dist`, con `VITE_API_URL=https://tu-api/api`.
-3. **SPA fallback**: `BrowserRouter` necesita que el hosting devuelva `index.html` en rutas desconocidas (Netlify: `/* /index.html 200`; Vercel lo hace solo; nginx ya está resuelto en `frontend/nginx.conf`).
-4. **Imágenes**: las subidas se sirven desde el backend (`/uploads`). Si el front y la API están en dominios distintos, esas rutas deben resolverse contra el dominio de la API, o servir el front detrás de nginx como en Docker.
-5. **Migraciones**: ejecutar `python migrate.py && python seed.py` una vez contra la BD de producción y cambiar la contraseña del admin del seed.
+1. **Backend** en Render/Railway/Fly: build `npm ci`, start `npm start`, con `DB_*`, `JWT_SECRET` y `CLIENT_URL`.
+2. **Frontend** en Vercel/Netlify: build `npm ci && npm run build`, publicar `dist` y definir `VITE_API_URL=https://tu-api/api`.
+3. **Rutas**: React Router necesita que el hosting devuelva `index.html` en cualquier ruta (Netlify: `/* /index.html 200`; Vercel ya lo hace; nginx ya está configurado).
+4. **Imágenes**: lo subido se sirve desde el backend (`/uploads`). Con Docker no hay problema porque nginx hace de proxy; si separas dominios, esas rutas deben apuntar a la API.
+5. **Base de datos**: ejecuta `python migrate.py && python seed.py` una vez en producción y cambia la contraseña del admin.
+
+## 13. Docker: cómo activarlo y cómo actualizarlo (paso a paso)
+
+**Requisito:** Docker Desktop instalado y **abierto**. Si no está abierto, falla con `Cannot connect to the Docker daemon`.
+
+### Activarlo la primera vez
+
+```bash
+cd "C:\Users\ASUS\Desktop\Prueba 1"
+docker compose up --build
+```
+
+- La primera vez tarda varios minutos (descarga imágenes y compila). Es normal.
+- Deja esa terminal abierta: ahí ves los logs. Cuando el backend y el frontend estén arriba, abre http://localhost:8080.
+- Usuario de prueba: `admin@prueba.com` / `admin123`.
+- Para cortarlo: `Ctrl + C`.
+
+Comprobar que está sano:
+
+```bash
+curl http://localhost:3001/api/health     # debe responder {"ok":true}
+docker compose ps                         # mysql "healthy", backend y frontend "Up"
+```
+
+### Actualizarlo cuando cambias código
+
+| Qué cambiaste | Qué ejecutar |
+| --- | --- |
+| Frontend o backend (`.js`, `.jsx`, `.css`) | `docker compose up --build -d` |
+| `docker-compose.yml` o variables | `docker compose up --build -d` |
+| SQL (`migraciones/sql/`) o `seed.py` | `docker compose down -v` y luego `docker compose up --build` |
+
+- `-d` significa "en segundo plano": no bloquea la terminal.
+- `down -v` **borra** la base y las imágenes subidas; al volver a levantar se siembra de cero.
+- Las migraciones y el seed se pueden repetir sin duplicar datos (son idempotentes).
+
+### Apagarlo
+
+```bash
+docker compose down        # apaga y conserva los datos
+docker compose down -v     # apaga y borra todo (base + imágenes)
+```
+
+### Si algo falla
+
+```bash
+docker compose logs -f backend     # logs en vivo (Ctrl + C para salir)
+docker compose logs migrate        # aquí se ve si la base migró y sembró bien
+```
+
+- `port is already allocated` → algo usa 8080, 3001 o 3307. Cambia el número de la izquierda en `docker-compose.yml`, por ejemplo `"8081:80"`.
+- `Cannot connect to the Docker daemon` → abre Docker Desktop y espera a que diga "Running".
+- La web abre pero la API falla al principio → MySQL aún estaba arrancando; espera unos segundos y recarga. Si sigue, revisa `docker compose logs backend`.
