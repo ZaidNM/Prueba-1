@@ -165,31 +165,6 @@ robocopy "C:\Users\ASUS\Desktop\Prueba 1" "D:\Prueba 1" /E /XD node_modules .ven
 **En la otra PC** (Node.js 22+ y MySQL 8/9 con Workbench):
 
 
-# 1. Migraciones y datos
-
-```
-cd "D:\Prueba 1\backend\migraciones"
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-python migrate.py
-python seed.py
-
-# 2. Backend
-cd "D:\Prueba 1\backend"
-Copy-Item .env.example .env      # escribe DB_PASSWORD (y cambia JWT_SECRET)
-npm install
-npm run dev
-
-# 3. Frontend (otra terminal)
-cd "D:\Prueba 1\frontend"
-npm install
-npm run dev
-```
-
-`migrate.py` crea la base automáticamente; solo necesita que el usuario de MySQL tenga
-permiso de `CREATE DATABASE`. Comprobación: <http://localhost:3000/api/health> →
-`{"ok":true}` y <http://localhost:5173> muestra el catálogo.
 
 ## 10. Docker: qué levanta y qué URLs usar
 
@@ -219,6 +194,8 @@ npm test        # 25 tests, no necesita base de datos
 - `backend/test/app.test.js`: llama a la API de verdad (health, 404, 400, 401 sin token).
 - `backend/app.js` es la app; `backend/index.js` solo la pone a escuchar. Así los tests arrancan sin el puerto fijo y sin MySQL.
 - `.github/workflows/ci.yml`: en cada push a `main`, GitHub corre los tests y el build del frontend. Si sale rojo, mira la pestaña **Actions** del repo.
+
+
 
 ## 12. Despliegue en producción (sin Docker)
 
@@ -250,6 +227,8 @@ Comprobar que está sano:
 curl http://localhost:3001/api/health     # debe responder {"ok":true}
 docker compose ps                         # mysql "healthy", backend y frontend "Up"
 ```
+
+
 
 ### Actualizarlo cuando cambias código
 
